@@ -143,6 +143,32 @@ See [`contracts/splits/src/lib.rs`](contracts/splits/src/lib.rs).
 
 ---
 
+## The `escrow` contract
+
+The `escrow` contract holds a single payment between a payer and a payee until an arbiter or one of
+the parties releases or refunds it. The `deadline` decides when a **funded** escrow becomes
+refundable to the payer.
+
+| Function                                                            | Description                                                                                               |
+| :------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------- |
+| `create_escrow(id, payer, payee, arbiter, token, amount, deadline)` | Register an escrow. `amount > 0` and the deadline must be in the future. Status `Created`.                |
+| `fund_escrow(id)`                                                   | Payer transfers `amount` into the contract. Status → `Funded`.                                            |
+| `release_escrow(id, caller)`                                        | Payer or arbiter sends the locked funds to the payee. Status → `Released`.                                |
+| `refund_escrow(id, caller)`                                         | Payee or arbiter returns the locked funds to the payer. Status → `Refunded`.                              |
+| `cancel_escrow(id, caller)`                                         | Payer cancels: always while `Created`, and once `Funded` only at or after the deadline (refund to payer). |
+| `get_escrow(id)`                                                    | Read helper.                                                                                              |
+
+**Deadline rule:** `create_escrow` requires `deadline > env.ledger().timestamp()` at call time and
+returns `EscrowError::InvalidDeadline` (code `9`) when `deadline <= now` — a deadline in the past, or
+exactly the current ledger timestamp, is rejected. Without this check a funded escrow could be
+cancelled by the payer the moment it was funded, since `cancel_escrow` releases the funds back to
+the payer as soon as the deadline has passed. Note that only `cancel_escrow` consults the deadline:
+`release_escrow` and `refund_escrow` work at any time before finalization, including after the
+deadline.
+See [`contracts/escrow/src/lib.rs`](contracts/escrow/src/lib.rs).
+
+---
+
 ## Contract reference
 
 Every entry point with its argument and return types, every error variant with its numeric code and
